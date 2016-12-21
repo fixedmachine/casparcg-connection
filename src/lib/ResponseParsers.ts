@@ -1,4 +1,5 @@
 import {TypedJSON} from "typedjson-npm";
+import * as Path from "path";
 import * as _ from "highland";
 import {Options as OptionsNS} from "./AMCPConnectionOptions";
 // Options NS
@@ -66,13 +67,7 @@ export namespace Response {
 				return CasparCGPaths.ensureTrailingSlash(relativeOrAbsolutePath);
 			}
 
-			let pathSection: RegExpMatchArray | null = relativeOrAbsolutePath.match(/^(\\|\/)*([\s\S]+)/);
-
-			if (pathSection) {
-				return CasparCGPaths.ensureTrailingSlash(this.root + pathSection[2]);
-			}
-
-			return CasparCGPaths.ensureTrailingSlash(this.root + "/" + relativeOrAbsolutePath);
+			return CasparCGPaths.ensureTrailingSlash(Path.join(this.root, relativeOrAbsolutePath));
 		}
 
 		/** */
@@ -216,8 +211,11 @@ export namespace Response {
 							o += o.indexOf(".") === -1 ? ".0" : "";
 							data["audio"]["mix-configs"][i]["from-type"] = o;
 						}
-
-						data["audio"]["mix-configs"][i] = this.childrenToArray(data["audio"]["mix-configs"][i], ["mappings"]);
+						if (data["audio"]["mix-configs"][i]["mappings"] && data["audio"]["mix-configs"][i]["mappings"]["mapping"] && Array.isArray(data["audio"]["mix-configs"][i]["mappings"]["mapping"])) {
+							data["audio"]["mix-configs"][i]["mappings"] = data["audio"]["mix-configs"][i]["mappings"]["mapping"];
+						}else if (data["audio"]["mix-configs"][i]["mappings"] && data["audio"]["mix-configs"][i]["mappings"]["mapping"]) {
+							data["audio"]["mix-configs"][i]["mappings"] = [(data["audio"]["mix-configs"][i]["mappings"]["mapping"]).toString()];
+						}
 					}
 				}
 			}
@@ -514,6 +512,18 @@ export namespace Response {
 		 * 
 		 */
 		public parse(data: Object): Object {
+
+			// wrap devices in arrays (if single device of a type)
+			if (data.hasOwnProperty("decklink") && data["decklink"].hasOwnProperty("device")) {
+				if (!Array.isArray(data["decklink"]["device"])) {
+					data["decklink"]["device"] = [data["decklink"]["device"]];
+				}
+			}
+			if (data.hasOwnProperty("bluefish") && data["bluefish"].hasOwnProperty("device")) {
+				if (!Array.isArray(data["bluefish"]["device"])) {
+					data["bluefish"]["device"] = [data["bluefish"]["device"]];
+				}
+			}
 			return data;
 		}
 	}

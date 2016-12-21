@@ -1,6 +1,6 @@
 {
   "name": "casparcg-connection",
-  "version": "0.11.0",
+  "version": "0.13.0",
   "description": "Node.js Javascript/Typescript library for CasparCG connection and commands.",
   "main": "js/index.js",
   "typings": "js/index.d.ts",
@@ -21,8 +21,19 @@
   "bugs": {
     "url": "https://github.com/SuperFlyTV/casparcg-connection/issues"
   },
-  "license": "GPL-3.0",
-  "author": "Jesper Stærkær @ SuperFly.tv",
+  "license": {
+    "type": "MIT",
+    "url": "https://opensource.org/licenses/MIT"
+  },
+  "directories": {
+    "lib": "src/",
+    "doc": "docs/"
+  },
+  "author": {
+    "name": "Jesper Stærkær",
+    "email": "jesper@superfly.tv",
+    "url": "http://superfly.tv"
+  },
   "homepage": "http://superfly.tv",
   "keywords": [
     "casparcg",
@@ -48,15 +59,16 @@
   },
   "devDependencies": {
     "@types/highland": "^1.14.30",
+    "@types/jasmine": "^2.5.37",
     "@types/node": "^6.0.46",
     "@types/xml2js": "0.0.28",
     "@types/xmlbuilder": "0.0.28",
-    "@types/jasmine": "^2.5.37",
     "del": "^2.2.1",
     "gulp": "^3.9.1",
     "gulp-typedoc": "^2.0.0",
     "gulp-typescript": "^2.10.0",
     "gulp-watch": "^4.3.5",
+    "gulp-zip": "^3.2.0",
     "jasmine-ts": "0.0.3",
     "tslint": "^3.13.0",
     "typedoc": "^0.3.12",

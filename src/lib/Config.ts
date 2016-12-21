@@ -179,7 +179,7 @@ export namespace Config {
 		/** */
 		@JsonObject
 		export class NewtekIvgaConsumer extends Consumer {
-			_type = "newtekivga";
+			_type = "newtek-ivga";
 
 			@JsonMember({type: String, name: "channel-layout"})
 			public channelLayout: string = "stereo";	// @todo: ns 2.0 only
@@ -390,7 +390,7 @@ export namespace Config {
 		@JsonObject
 		export class Osc {
 
-			public disableSendToAmcpClient?: boolean | null;
+			public disableSendToAmcpClients?: boolean | null;
 
 			@JsonMember({type: Number, name: "default-port"})
 			public defaultPort: number = 6250;
@@ -530,7 +530,7 @@ export namespace Config {
 		@JsonObject
 		export class Osc extends v2xx.Osc {
 			@JsonMember({type: Boolean, name: "disable-send-to-amcp-clients"})
-			public disableSendToAmcpClient: boolean = false;
+			public disableSendToAmcpClients: boolean = false;
 		}
 
 		/**  */
@@ -597,6 +597,31 @@ export namespace Config {
 	export namespace v21x {
 	}
 
+	/** */
+	export namespace CasparCGAbstract {
+
+		/** */
+		export class Audio {
+			public channelLayouts: Array<v21x.ChannelLayout> = [];
+			public mixConfigs: Array<CasparCGAbstract.MixConfig> = [];
+		}
+
+		/**  */
+		export class MixConfig {
+			@JsonMember({type: String})
+			public _type: string;
+
+			@JsonMember({type: String, name: "from-type"})
+			public fromType: string;
+
+			@JsonMember({type: String, name: "to-types"})
+			public toTypes: string;
+
+			@JsonMember({type: String})
+			public mix: {mixType: string, destinations: {[destination: string]: Array<{source: string, expression: string}>}};
+		}
+	}
+
 	/**  */
 	const defaultChannel_2xx: v2xx.Channel = {videoMode: "PAL", _consumers: [], consumers: [], _type: "channel"};
 	const defaultAMCPController: v2xx.Controller = {_type: "tcp", port: 5250, protocol: "AMCP"};
@@ -658,7 +683,7 @@ export namespace Config {
 		@JsonMember({type: Boolean, name: "force-deinterlace"})
 		public forceDeinterlace: boolean = false;
 		@JsonMember({type: String})				// @todo: enum
-		public accellerator: string = "auto";
+		public accelerator: string = "auto";
 		@JsonMember({type: Array, elements: v2xx.Controller, isRequired: true})
 		public controllers: Array<v2xx.Controller> = [defaultAMCPController, defaultLOGController];
 		@JsonMember({type: v21x.Thumbnails})
@@ -685,13 +710,13 @@ export namespace Config {
 		autoDeinterlace: boolean | null;
 		autoTranscode: boolean | null;
 		pipelineTokens: number | null;
-		accellerator: string | null;
+		accelerator: string | null;
 		thumbnails: v21x.Thumbnails;
 		flash: v2xx.Flash;
 		html: v21x.Html;
 		templateHosts: Array<v2xx.TemplateHost>;
 		osc: v2xx.Osc;
-		audio: v21x.Audio;
+		audio: CasparCGAbstract.Audio;
 	}
 
 	/** */
@@ -708,13 +733,13 @@ export namespace Config {
 		public autoDeinterlace: boolean | null = null;
 		public autoTranscode: boolean | null = null;
 		public pipelineTokens: number | null = null;
-		public accellerator: string | null = null;
-		public thumbnails: v21x.Thumbnails = new v21x.Thumbnails;
+		public accelerator: string | null = null;
+		public thumbnails: v21x.Thumbnails = new v21x.Thumbnails();
 		public flash: v2xx.Flash = new v2xx.Flash();
 		public html: v21x.Html = new v21x.Html();
 		public templateHosts: Array<v2xx.TemplateHost> = [];
-		public osc: v2xx.Osc = new v2xx.Osc;
-		public audio: v21x.Audio = new v21x.Audio;
+		public osc: v2xx.Osc = new v2xx.Osc();
+		public audio: CasparCGAbstract.Audio = new CasparCGAbstract.Audio();
 	}
 
 	/** */	export class CasparCGConfig extends AbstractDefaultCasparCGConfig implements ICasparCGConfig {
@@ -799,8 +824,8 @@ export namespace Config {
 			// pipeline tokens
 			this.pipelineTokens = configVO.pipelineTokens;
 
-			// accellerator
-			this.accellerator = null;
+			// accelerator
+			this.accelerator = null;
 
 			// thumbnails
 			this.thumbnails = configVO.thumbnails;
@@ -817,11 +842,11 @@ export namespace Config {
 			// osc
 			this.osc = new v2xx.Osc();
 			this.osc.defaultPort = configVO.osc.defaultPort;
-			this.osc.disableSendToAmcpClient = null;
+			this.osc.disableSendToAmcpClients = null;
 			this.osc.predefinedClients = configVO.osc.predefinedClients;
 
 			// audio
-			this.audio = new v21x.Audio();
+			this.audio = new CasparCGAbstract.Audio();
 			this.audio.channelLayouts = new Array<v21x.ChannelLayout>();
 			configVO.audio.channelLayouts.forEach((i: v2xx.ChannelLayout) => {
 				let channelLayout: v21x.ChannelLayout = new v21x.ChannelLayout();
@@ -832,13 +857,32 @@ export namespace Config {
 				channelLayout.type = i.type;
 				this.audio.channelLayouts.push(channelLayout);
 			});
-			this.audio.mixConfigs = new Array<v21x.MixConfig>();
+			this.audio.mixConfigs = new Array<CasparCGAbstract.MixConfig>();
 			configVO.audio.mixConfigs.forEach((i: v2xx.MixConfig) => {
-				let mixConfig: v21x.MixConfig = new v21x.MixConfig();
+				let mixConfig: CasparCGAbstract.MixConfig = new CasparCGAbstract.MixConfig();
 				mixConfig._type = i._type;
 				mixConfig.fromType = i.from;
-				mixConfig.mix = "";	// @todo: algorithm for converting 207 to 210 mix
 				mixConfig.toTypes = i.to;
+				mixConfig.mix = {mixType: i.mix, destinations: {}};
+
+				// convert 2.0.x mix-config to 2.1.x
+				let destinations: {[destination: string]: Array<{source: string, expression: string}>} = {};
+				let mapSections: RegExpMatchArray | null;
+				for (let o: number = 0; o < i.mappings.length; o++) {
+					mapSections = i.mappings[o].match(/(\S+)\s+(\S+)\s+(\S+)/);
+					if (mapSections !== null) {
+						let src: string = mapSections[1];
+						let dst: string = mapSections[2];
+						let expr: string = mapSections[3];
+
+						if (!destinations.hasOwnProperty(dst)) {
+							destinations[dst] = [];
+						}
+						destinations[dst].push({source: src, expression: expr});
+					}
+				}
+
+				mixConfig.mix.destinations = destinations;
 				this.audio.mixConfigs.push(mixConfig);
 			});
 		}
@@ -885,8 +929,8 @@ export namespace Config {
 			// pipeline tokens
 			this.pipelineTokens = -1; // @todo: null value
 
-			// accellerator
-			this.accellerator = configVO.accellerator;
+			// accelerator
+			this.accelerator = configVO.accelerator;
 
 			// thumbnails
 			this.thumbnails = configVO.thumbnails;
@@ -904,7 +948,39 @@ export namespace Config {
 			this.osc = configVO.osc;
 
 			// audio
-			this.audio = configVO.audio;
+			this.audio = new CasparCGAbstract.Audio();
+			this.audio.channelLayouts = configVO.audio.channelLayouts;
+			this.audio.mixConfigs = new Array<CasparCGAbstract.MixConfig>();
+			configVO.audio.mixConfigs.forEach((i: v21x.MixConfig) => {
+				let mixConfig: CasparCGAbstract.MixConfig = new CasparCGAbstract.MixConfig();
+				mixConfig._type = i._type;
+				mixConfig.fromType = i.fromType;
+				mixConfig.toTypes = i.toTypes;
+
+				let destinations: {[destination: string]: Array<{source: string, expression: string}>} = {};
+				let mixType: string = i.mix.match(/\&lt\;|\</g) !== null ? "average" : "add";
+				let src: string;
+				let dest: string;
+				let expr: string;
+				i.mix.split("|").map((i) => i.replace(/^\s*|\s*$/g, "")).forEach((o) => {
+					let srcDstSplit = o.split(/\&lt\;|\<|\=/);
+					dest = srcDstSplit[0].replace(/^\s*|\s*$/g, "");
+					destinations[dest] = [];
+					srcDstSplit[1].split("+").forEach((u) => {
+						let exprSplit: Array<string> = u.split("*");
+						if (exprSplit.length > 1) {
+							expr = exprSplit[0].replace(/^\s*|\s*$/g, "");
+							src = exprSplit[1].replace(/^\s*|\s*$/g, "");
+						}else {
+							src = exprSplit[0].replace(/^\s*|\s*$/g, "");
+							expr = "1.0";
+						}
+						destinations[dest].push({source: src, expression: expr});
+					});
+				});
+				mixConfig.mix = {mixType: mixType, destinations: destinations};
+				this.audio.mixConfigs.push(mixConfig);
+			});
 		}
 
 		/** */
@@ -924,7 +1000,115 @@ export namespace Config {
 		}
 
 		/** */
-		public get V207ConfigXML(): string {return ""; }
+		public get V207ConfigXML(): string {
+			let root = xmlbuilder("configuration");
+
+			// paths
+			let paths: v2xx.Paths = new v2xx.Paths();
+			paths = this.paths;
+			paths.thumbnailsPath = paths.thumbnailPath;
+			delete paths.thumbnailPath;
+
+			CasparCGConfig.addFormattedXMLChildsFromObject(root.ele("paths"), paths); // , ["mediaPath", "logPath", "dataPath", "templatesPath", "thumbnailPath"]);
+
+			// channels
+			let channels = root.ele("channels");
+			this.channels.forEach((i) => {
+				let channel = channels.ele("channel");
+				CasparCGConfig.addFormattedXMLChildsFromObject(channel, i, ["_type", "consumers", "_consumers"]);
+
+				// consumer
+				let consumers = channel.ele("consumers");
+				i.consumers.forEach((i) => {
+					let consumer = consumers.ele(i._type);
+					CasparCGConfig.addFormattedXMLChildsFromObject(consumer, i, ["_type"]);
+				});
+			});
+
+			// controllers
+			let controllers = root.ele("controllers");
+			this.controllers.forEach((i) => {
+				let controller = controllers.ele(i._type);
+				CasparCGConfig.addFormattedXMLChildsFromObject(controller, i, ["_type"]);
+			});
+
+			// all root-level single values
+			CasparCGConfig.addFormattedXMLChildsFromArray(root, this, ["logLevel", "autoDeinterlace", "autoTranscode", "pipelineTokens", "channelGrid"]);
+
+			// mixer
+			if (this.mixer) {
+				CasparCGConfig.addFormattedXMLChildsFromObject(root.ele("mixer"), this.mixer);
+			}
+
+			// flash
+			if (this.flash) {
+				CasparCGConfig.addFormattedXMLChildsFromObject(root.ele("flash"), this.flash);
+			}
+
+			// template hosts
+			if (this.templateHosts && this.templateHosts.length > 0) {
+				let templateHosts = root.ele("template-hosts");
+				this.templateHosts.forEach((i) => {
+					let templatehost = templateHosts.ele(i._type);
+					CasparCGConfig.addFormattedXMLChildsFromObject(templatehost, i, ["_type"]);
+				});
+			}
+
+			// thumbnails
+			if (this.thumbnails) {
+				CasparCGConfig.addFormattedXMLChildsFromObject(root.ele("thumbnails"), this.thumbnails);
+			}
+
+			// osc
+			if (this.osc) {
+				let osc = root.ele("osc");
+				// predefined clients
+				if (this.osc.predefinedClients && this.osc.predefinedClients.length > 0) {
+					let predefinedClients = osc.ele("predefined-clients");
+					this.osc.predefinedClients.forEach((i) => {
+						predefinedClients;
+						let client = predefinedClients.ele(i._type);
+						CasparCGConfig.addFormattedXMLChildsFromObject(client, i, ["_type"]);
+					});
+				}
+			}
+
+			// audio
+			if (this.audio && ((this.audio.channelLayouts && this.audio.channelLayouts.length > 0) || (this.audio.mixConfigs && this.audio.mixConfigs.length > 0))) {
+				let audio = root.ele("audio");
+				if (this.audio.channelLayouts && this.audio.channelLayouts.length > 0) {
+					let channelLayouts = audio.ele("channel-layouts");
+					this.audio.channelLayouts.forEach((i) => {
+						let channelLayout = channelLayouts.ele("channel-layout");
+						if (i.name) channelLayout.att("name", i.name);
+						if (i.type) channelLayout.att("type", i.type);
+						if (i.numChannels) channelLayout.att("num-channels", i.numChannels);
+						if (i.channelOrder) channelLayout.att("channels", i.channelOrder);
+					});
+				}
+
+				if (this.audio.mixConfigs && this.audio.mixConfigs.length > 0) {
+					let mixConfigs = audio.ele("mix-configs");
+					this.audio.mixConfigs.forEach((i) => {
+						let mixConfig = mixConfigs.ele("mix-config");
+						mixConfig.ele("from", i.fromType);
+						mixConfig.ele("to", i.toTypes);
+						mixConfig.ele("mix", i.mix.mixType);
+						let mappings = mixConfig.ele("mappings");
+						for (let o in i.mix.destinations) {
+							let destination: Array<{source: string, expression: string}> = i.mix.destinations[o];
+							destination.forEach((u) => {
+								mappings.ele("mapping", u.source + " " + o + " " + u.expression);
+							});
+						}
+					});
+
+				}
+
+			}
+
+			return root.end({pretty: true});
+		}
 
 		/** */
 		public get V210ConfigXML(): string {
@@ -955,7 +1139,7 @@ export namespace Config {
 			});
 
 			// all root-level single values
-			CasparCGConfig.addFormattedXMLChildsFromArray(root, this, ["lockClearPhrase", "logLevel", "logCategories", "forceDeinterlace", "channelGrid", "accellerator"]);
+			CasparCGConfig.addFormattedXMLChildsFromArray(root, this, ["lockClearPhrase", "logLevel", "logCategories", "forceDeinterlace", "channelGrid", "accelerator"]);
 
 			// mixer
 			if (this.mixer) {
@@ -989,12 +1173,11 @@ export namespace Config {
 			// osc
 			if (this.osc) {
 				let osc = root.ele("osc");
-				CasparCGConfig.addFormattedXMLChildsFromArray(osc, this.osc, ["defaultPort", "disableSendToAmcpClient"]);
+				CasparCGConfig.addFormattedXMLChildsFromArray(osc, this.osc, ["defaultPort", "disableSendToAmcpClients"]);
 				// predefined clients
 				if (this.osc.predefinedClients && this.osc.predefinedClients.length > 0) {
 					let predefinedClients = osc.ele("predefined-clients");
 					this.osc.predefinedClients.forEach((i) => {
-						console.log(i);
 						predefinedClients;
 						let client = predefinedClients.ele(i._type);
 						CasparCGConfig.addFormattedXMLChildsFromObject(client, i, ["_type"]);
@@ -1018,10 +1201,27 @@ export namespace Config {
 				if (this.audio.mixConfigs && this.audio.mixConfigs.length > 0) {
 					let mixConfigs = audio.ele("mix-configs");
 					this.audio.mixConfigs.forEach((i) => {
+
+						let mixStrings: Array<string> = [];
+						let mixOperator: string = i.mix.mixType === "average" ? "<" : i.mix.mixType === "add" ? "=" : "";
+						let destination: Array<{source: string, expression: string}>;
+						for (let o in i.mix.destinations) {
+							destination = i.mix.destinations[o];
+							if (destination.length > 1) {
+								let subSourceStrings: Array<string> = [];
+								destination.forEach((u) => {
+									subSourceStrings.push(u.expression === "1.0" ? u.source : (u.expression.toString() + "*" + u.source));
+								});
+								mixStrings.push(o + " " + mixOperator + " " + subSourceStrings.join(" + "));
+							} else {
+								mixStrings.push(o + " = " + (destination[0].expression === "1.0" ? destination[0].source : (destination[0].expression.toString() + "*" + destination[0].source)));
+							}
+						}
+
 						mixConfigs.ele("mix-config")
 						.att("from-type", i.fromType)
 						.att("to-types", i.toTypes)
-						.att("mix", i.mix);
+						.att("mix", mixStrings.join(" | "));
 					});
 				}
 			}
